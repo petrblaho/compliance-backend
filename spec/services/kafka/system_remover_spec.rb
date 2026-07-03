@@ -70,7 +70,7 @@ describe Kafka::SystemRemover do
     end
 
     before do
-      kafka_system.update!(updated: Time.now.utc)
+      kafka_system.update!(updated: Time.current)
     end
 
     it 'ignores the delete message and does not soft-delete the system' do
