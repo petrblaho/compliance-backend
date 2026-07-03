@@ -41,6 +41,23 @@ describe Kafka::SystemRemover do
     end
   end
 
+  context 'with invalid timestamp in delete message' do
+    let(:message) do
+      {
+        'id' => system_id,
+        'org_id' => org_id,
+        'updated' => 'invalid-timestamp-string'
+      }
+    end
+
+    it 'logs a warning and falls back to current time' do
+      expect(Karafka.logger).to receive(:warn).with(/Failed to parse timestamp 'invalid-timestamp-string'/)
+      service.remove_system
+      system = KafkaSystem.unscoped.find(system_id)
+      expect(system.deleted_at).not_to be_nil
+    end
+  end
+
   context 'when existing system has a newer updated timestamp' do
     let(:event_time) { 1.day.ago.utc.iso8601 }
     let(:message) do
