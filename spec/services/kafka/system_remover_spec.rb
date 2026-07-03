@@ -17,6 +17,7 @@ describe Kafka::SystemRemover do
     end
 
     it 'soft-deletes the KafkaSystem by setting deleted_at to current time' do
+      expect(Karafka.logger).to receive(:audit_success).with(/Soft-deleted system/)
       expect { service.remove_system }.to change { KafkaSystem.count }.from(1).to(0)
 
       system = KafkaSystem.unscoped.find(system_id)
@@ -73,8 +74,27 @@ describe Kafka::SystemRemover do
     end
 
     it 'ignores the delete message and does not soft-delete the system' do
+      expect(Karafka.logger).to receive(:info).with(/Ignored stale delete event/)
       expect { service.remove_system }.not_to(change { KafkaSystem.count })
       expect(kafka_system.reload.deleted_at).to be_nil
+    end
+  end
+
+  context 'when an exception occurs' do
+    let(:message) do
+      {
+        'id' => system_id,
+        'org_id' => org_id
+      }
+    end
+
+    before do
+      allow(KafkaSystem).to receive(:where).and_raise(ActiveRecord::ActiveRecordError, 'db error')
+    end
+
+    it 'logs audit_fail and re-raises the exception' do
+      expect(Karafka.logger).to receive(:audit_fail).with(/Failed to soft-delete system.*db error/)
+      expect { service.remove_system }.to raise_error(ActiveRecord::ActiveRecordError, 'db error')
     end
   end
 end

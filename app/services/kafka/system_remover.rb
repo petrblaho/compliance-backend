@@ -10,16 +10,27 @@ module Kafka
       @org_id = @message.dig('org_id')
     end
 
+    # rubocop:disable Metrics/MethodLength
     def remove_system
       computed_timestamp = delete_timestamp
       # rubocop:disable Layout/LineLength
       # rubocop:disable Rails/SkipsModelValidations
-      KafkaSystem.where(id: @id)
-                 .where('updated IS NULL OR updated < ?', computed_timestamp)
-                 .update_all(deleted_at: computed_timestamp)
+      result = KafkaSystem.where(id: @id)
+                          .where('updated IS NULL OR updated < ?', computed_timestamp)
+                          .update_all(deleted_at: computed_timestamp)
       # rubocop:enable Rails/SkipsModelValidations
       # rubocop:enable Layout/LineLength
+
+      if result.zero?
+        @logger.info("[Kafka::SystemRemover] Ignored stale delete event or no active system found for ID #{@id}")
+      else
+        @logger.audit_success("[Kafka::SystemRemover] Soft-deleted system #{@id}")
+      end
+    rescue StandardError => e
+      @logger.audit_fail("[Kafka::SystemRemover] Failed to soft-delete system #{@id}: #{e.message}")
+      raise e
     end
+    # rubocop:enable Metrics/MethodLength
 
     private
 
